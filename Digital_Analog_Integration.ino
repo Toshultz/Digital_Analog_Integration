@@ -146,7 +146,8 @@ unsigned short int w1 = 0;
 //int b=0;
 
 
-byte rowarray[] = {3, 7, 1, 5, 2, 6, 8, 9, 0, 4}; // MY CARTRIDGE _ for mari detection
+//byte rowarray[] = {3, 7, 1, 5, 2, 6, 8, 9, 0, 4}; // MY CARTRIDGE _ for mari detection
+byte rowToMux[] = {7, 5, 6, 9, 4, 0, 8, 2, 1, 3};
 byte colarray[] = {0, 1, 2, 3, 4, 5, 6, 7}; // MY CARTRIDGE
 
 
@@ -504,6 +505,7 @@ int sensorCount = 80;
 //int timePoints = 4;
 int sensors[80]; //stores 0 for BSA, 1 for THC, 2 for BIOTIN, 3 for EMPTY
 int sensorValues[80];//most recent sensor reading
+int numActiveSensors;
 void initializeSensors();
 bool timerExpired = true;
 int timerValue = 0;
@@ -766,7 +768,7 @@ void myGenieEventHandler(void){
       }
       if(Event.reportObject.index == 7){ //start experiment button
 
-         for (int a = 0; a < 80; a++){ //State 99
+         for (int a = 0; a < 80; a++){ //State 99 initialize arrays
            mr0[a] = 0;
            Ic_original[a] = 0;
            Is_original[a] = 0;
@@ -774,8 +776,8 @@ void myGenieEventHandler(void){
          }
          mr_cal = 0;
 
-         matchResistances();//State 1
-        
+        matchResistances();//State 1
+    
         static long interval = 1000;// 1 second
         long waitPeriod = millis();
         timerExpired = false;
@@ -825,17 +827,25 @@ void updateLayout(int index, int type){
   int THCindex = index + sensorCount*THC;
   int BIOindex = index + sensorCount*BIOTIN;
   int selectedLED = index + sensorCount*type;
+
   
+    //set all to off (display grey)
   genie.WriteObject(GENIE_OBJ_USER_LED, BSAindex, 0);
   genie.WriteObject(GENIE_OBJ_USER_LED, THCindex, 0);
   genie.WriteObject(GENIE_OBJ_USER_LED, BIOindex, 0);
-
-  if(type != EMPTY){
-    genie.WriteObject(GENIE_OBJ_USER_LED, selectedLED, 1);
-  }
-  sensors[index] = type;
   
+  if(type != EMPTY){// display color if not EMPTY
+    genie.WriteObject(GENIE_OBJ_USER_LED, selectedLED, 1);
+    if(sensors[index] == EMPTY){ //only add to numActiveSensors if previous type was EMPTY 
+      numActiveSensors++;
+    }
+  }else if(sensors[index] != EMPTY){ //only subtract from numActiveSensors if previous type was not EMPTY
+    numActiveSensors--;
+  }
+  
+  sensors[index] = type;
 }
+  
 
 void collectSensorValue(int readCount){
   int sensor = readCount%80;
@@ -994,102 +1004,119 @@ void matchResistances(){
   
   for (int a = 0; a++; a < 80)
   {
-    autogainres[a] = 0;
+    autogainres[a] = 256;
   }
 
-  for ( rowncoln = 0; rowncoln < 80; rowncoln++)
-  {
+  int activeCount = 0;
+  int activePercent = 0;
+  String calibrationDisplay = "";
     
-    rown = (int)(rowncoln / 8);
-    coln = rowncoln - 8 * (int)(rowncoln / 8); //rowncoln % 8;
-//    row = rowarray[rown];
-//    col = colarray[coln];
-    row = rown;
-    col = coln;
-    MULTIPLIER2_on(row);
-    MULTIPLIER1_on(col); ////////////////SHOULD BE CHECKED
+  for ( rowncoln = 0; rowncoln < sensorCount; rowncoln++)
+  {
 
-    // for the current sensor initialize faulty to be false for every resistor
-    for (int a = 0; a < 16; a++)
-    {
-      faulty[a] = false;
-    }
-
-    // compare current sensor to 16 resistors
-    wrangesmallest = 15;
-    for (res = 15; res >= 0; res--)
-    {
-      AUTOGAINMUX_on(res);//(*(resarray+res));
-      for (ab = 0; ab < 5; ab++);
-
-      for (int a = 0; a < 250; a++) //buffer
+    if(sensors[rowncoln] != EMPTY){
+      
+      activeCount++;
+      activePercent = activeCount*100/numActiveSensors;
+      calibrationDisplay = "Calibration is: \n" + String(activePercent) + "% Complete";
+      genie.WriteStr(4, calibrationDisplay);
+      
+      
+      rown = (int)(rowncoln / 8);
+      coln = rowncoln - 8 * (int)(rowncoln / 8); //rowncoln % 8;
+      
+      row = rowToMux[rown];
+      col = colarray[coln];
+  
+      MULTIPLIER2_on(row);
+      MULTIPLIER1_on(col); ////////////////SHOULD BE CHECKED
+  
+      // for the current sensor initialize faulty to be false for every resistor
+      for (int a = 0; a < 16; a++)
       {
-        wint = SPI_ADC_RECEIVE();   
+        faulty[a] = false;
       }
-
-      for (int a = 0; a < 150; a++)
+  
+      // compare current sensor to 16 resistors
+      wrangesmallest = 15;
+      for (res = 15; res >= 0; res--)
       {
-        wint = SPI_ADC_RECEIVE();
-        
-         if(wint >= 524288 )
-          {
-            wint = wint - 1048576;
-          }       
-
-        if (a == 0) //after the first reading set that reading to both min and max
+        AUTOGAINMUX_on(res);//(*(resarray+res));
+        for (ab = 0; ab < 5; ab++);
+  
+        for (int a = 0; a < 250; a++) //buffer
         {
-          wmax = wint;
-          wmin = wint;
+          wint = SPI_ADC_RECEIVE();   
         }
-        else
+  
+        for (int a = 0; a < 150; a++)
         {
-          if ((wmax < wint))
+          wint = SPI_ADC_RECEIVE();
+          
+           if(wint >= 524288 )
+            {
+              wint = wint - 1048576;
+            }       
+  
+          if (a == 0) //after the first reading set that reading to both min and max
           {
-           wmax = wint;
-          }
-          if ((wmin > wint))
-          {
+            wmax = wint;
             wmin = wint;
           }
-          if ( wint > 201860 || wint < -201860 )
+          else
           {
-            faulty[res] = true;
+            if ((wmax < wint))
+            {
+             wmax = wint;
+            }
+            if ((wmin > wint))
+            {
+              wmin = wint;
+            }
+            if ( wint > 201860 || wint < -201860 )
+            {
+              faulty[res] = true;
+            }
+  
           }
-
+  
+  
+        }//end comparison of single sensor to resistor array
+  
+        wrange[res] = wmax - wmin;
+        if (wrange[res] < wrange[wrangesmallest])
+        {
+          wrangesmallest =  res;
         }
-
-
-      }//sampling for end
-
-      wrange[res] = wmax - wmin;
-      if (wrange[res] < wrange[wrangesmallest])
+      }//autogain for end
+//      autogainres[row * 8 + col] = wrangesmallest;
+      autogainres[rowncoln] = wrangesmallest;
+      
+      faultysensor = true;
+      for(int i = 0; i < 16; i++){
+        if(faulty[i] == false){
+          faultysensor = false;
+        }
+      }
+  
+      if (faultysensor == true)
       {
-        wrangesmallest =  res;
+        autogainres[rowncoln] = 0; //4;
+      }else if (autogainres[rowncoln] != 15)
+      {
+        autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
+  
       }
-    }//autogain for end
-    autogainres[row * 8 + col] = wrangesmallest;
+  
+    }//end if !=EMPTY
+    else{
+      autogainres[rowncoln] = 255;
+    }
     
-    faultysensor = true;
-    for(int i = 0; i < 16; i++){
-      if(faulty[i] == false){
-        faultysensor = false;
-      }
-    }
-
-    if (faultysensor == true)
-    {
-      autogainres[row * 8 + col] = 0; //4;
-    }else if (autogainres[row * 8 + col] != 15)
-    {
-      autogainres[row * 8 + col] = autogainres[row * 8 + col] + 1; //4;
-
-    }
-
-
-  }//row end column end
+   }//row end column end
   autogain = true;
 
-  for (int a = 0; a < 80; a++) //6
+  for (int a = 0; a < sensorCount; a++) //6
   {
     //  for (ab = 0; ab < 10; ab++);
 
@@ -1117,8 +1144,10 @@ void matchResistances(){
       rowString = ToSendDataBuffer1[i];
       rowString += ",";
       rowEntry = 1;
-    }
+    } 
   }
+  dataFile.println(rowString);//print last row of res matches
+
 
   dataFile.println("Done writing reference resistors:  ");
   dataFile.println(millis()-startTime);
