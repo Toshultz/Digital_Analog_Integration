@@ -697,7 +697,6 @@ void setup()
 
   //Write header on csv file.
   dataFile.println(userName);
-  dataFile.println("Iteration,Time,Sensor,Type,Value");
 
     
 }
@@ -734,8 +733,10 @@ void writeData(int timePoint, int timerValue, int sensor, int sensorValue){
   dataFile.flush();   
 }
 
+
 void loop()
 {
+
   static long waitPeriod = millis();
   genie.DoEvents(); // This calls the library each loop to process the queued responses from the display
 
@@ -777,24 +778,49 @@ void myGenieEventHandler(void){
          mr_cal = 0;
 
         matchResistances();//State 1
-    
-        static long interval = 1000;// 1 second
-        long waitPeriod = millis();
+
+        int readCount = 0;    
+        long waitPeriod, startMillis = millis();
         timerExpired = false;
-        int readCount = 0;
+        String calibrationString = "";
+        int percent = 0;
+        
+
+        dataFile.println("Iteration,Time,Sensor,Type,Value");
+
         while(!timerExpired){
           if(millis()>waitPeriod){
+            timerValue = (millis()-startMillis)/1000;
             genie.WriteStr(3, F(" "));//for some bizzare reason, need this in order for timer to stop when stop button is pressed
             int minutes = timerValue/60;
             int seconds = timerValue%60;
             int timerDisplay = minutes*100+seconds;
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, 0, timerDisplay);
-            waitPeriod +=1000;
-            timerValue++;
+            waitPeriod +=1000;//1 sec
             calcMeanValues();
           }
           genie.DoEvents();
-          collectSensorValue(readCount);
+          
+          if(readCount < sensorCount && sensors[readCount%80] != EMPTY){
+//          if(readCount < sensorCount){
+            mr_cal = 1;
+            digitalWrite(PA_switch, HIGH);//Low field
+            percent = readCount*100/sensorCount;
+            calibrationString = "First read is: \n" + String(percent) + "% Complete";
+            genie.WriteStr(4, calibrationString);
+            collectSensorValue(readCount);
+          }
+          
+          else if(readCount < 2*sensorCount && sensors[readCount%80] != EMPTY){
+            mr_cal = 0;
+            digitalWrite(PA_switch, LOW);//HIGH field
+            
+            percent = (readCount - sensorCount)*100/sensorCount;
+            calibrationString = "Second read is: \n" + String(percent) + "% Complete";
+            genie.WriteStr(4, calibrationString);
+            collectSensorValue(readCount);
+          }else {collectSensorValue(readCount);}
+          
           readCount++;
         }
 
@@ -848,13 +874,194 @@ void updateLayout(int index, int type){
   
 
 void collectSensorValue(int readCount){
+
   int sensor = readCount%80;
-  int timePoint = readCount/80;
   sensorType = sensors[sensor];
   if(sensorType == EMPTY){return;}
 
-  int sensorValue = (sensorType + 1)*sensor*(1-pow(2.3, -0.008*timerValue));
-  
+  int timePoint = readCount/80;
+
+  int row = (int)(sensor / 8);
+  int col = sensor - 8*row;
+
+  AUTOGAINMUX_on(autogainres[sensor]);
+
+  int muxRow = rowToMux[row];
+  int muxCol = colarray[col];
+
+  MULTIPLIER1_on(muxCol);
+  MULTIPLIER2_on(muxRow);
+
+//  int sensorValue = (sensorType + 1)*sensor*(1-pow(2.3, -0.008*timerValue));//generate simulated data
+
+  delay(100);
+  {
+
+    for (int a = 0; a < 10; a++)
+    {
+      w = SPI_ADC_RECEIVE();
+      AVal[a] = w;
+    }
+    
+    for (int a = 0; a < N; a++) // N = 2^12 data points
+    {
+      w = SPI_ADC_RECEIVE();
+      AVal[a] = w;
+    }
+    
+    for (int a = 0; a < N; a++) //
+    {
+      if(AVal[a] >= 524288 )
+      {
+        AVal[a] = AVal[a]- 1048576;
+      }                  
+    }
+    
+    int mean_long = 0;
+    for (int ii = 0; ii < N; ii++)
+    {
+      mean_long = AVal[ii] + mean_long; //sum up
+    }
+    mean_long=  (mean_long / N); //get mean
+
+    for (int ii = 0; ii < N; ii++)
+    {
+      AVal[ii] = ( (AVal[ii] - mean_long) * hann[ii] );
+    }
+
+    FFTAnalysis(FTvl, AVal,  Nvl,  Nft);
+
+    for (int i = 0; i < N; i++)
+    {
+      FTvl[i] = FTvl[i] / N * 10  / 1048576;
+    }
+
+    //tracker
+    for (int i = 0; i < 51; i++)
+    {
+      tempcarrierarray[i] =  FTvl[carrierfrequency - 25 + i];
+    }
+
+    sort(tempcarrierarray, 51);
+
+    for (int i = 0; i < 51; i++)
+    {
+      if (tempcarrierarray[50] == FTvl[carrierfrequency - 25 + i])
+      {
+        tempcarrierfrequency = carrierfrequency - 25 + i;
+      }
+    }
+
+    for (int i = 0; i < 51; i++)
+    {
+      tempsidearray[i] =  FTvl[sidefrequency - 25 + i];
+    }
+
+    sort(tempsidearray, 51);
+    for (int i = 0; i < 51; i++)
+    {
+      if (tempsidearray[50] == FTvl[sidefrequency - 25 + i])
+      {
+        tempsidefrequency = sidefrequency - 25 + i;
+      }
+    }
+
+    for (int i = 0; i < 51; i++)
+    {
+      tempsidearray[i] =  FTvl[sidefrequency2 - 25 + i];
+    }
+
+    sort(tempsidearray, 51);
+    for (int i = 0; i < 51; i++)
+    {
+      if (tempsidearray[50] == FTvl[sidefrequency2 - 25 + i])
+      {
+        tempsidefrequency2 = sidefrequency2 - 25 + i;
+      }
+    }
+  }
+
+  carriermul = FTvl[tempcarrierfrequency] * FTvl[tempcarrierfrequency];
+  for (int i = 1; i < freq_bin ; i++)
+  {
+    carriermul =  carriermul + FTvl[tempcarrierfrequency + i] * FTvl[tempcarrierfrequency + i] + FTvl[tempcarrierfrequency - i] * FTvl[tempcarrierfrequency - i];
+  }
+
+  sidemul = FTvl[tempsidefrequency] * FTvl[tempsidefrequency];
+  for (int i = 1; i < side_bin1; i++)
+  {
+    sidemul = sidemul + FTvl[tempsidefrequency + i] * FTvl[tempsidefrequency + i] + FTvl[tempsidefrequency - i] * FTvl[tempsidefrequency - i];
+  }
+
+
+  sidemul2 = FTvl[tempsidefrequency2] * FTvl[tempsidefrequency2];
+  for (int i = 1; i < side_bin2; i++)
+  {
+    sidemul2 =  sidemul2 + FTvl[tempsidefrequency2 + i] * FTvl[tempsidefrequency2 + i] + FTvl[tempsidefrequency2 - i] * FTvl[tempsidefrequency2 - i];
+  }
+
+  sidemul = (sidemul + sidemul2) / 2;
+
+
+
+  Ic =  involt_rms * AMP1[row * 8 + col]   + sqrt((double)(2 * (carriermul))) / AMP23; // / AMP1[row * 8 + col]  ;
+  Is =  sqrt( 2 * (sidemul ) ) / AMP23;// / AMP1[row * 8 + col] ;
+
+
+  if (table[row * 8 + col] == 0)
+  {
+    table[row * 8 + col] = 1;
+    Ic_original[row * 8 + col] = (double)Ic;
+    Is_original[row * 8 + col] = (double)Is;
+    mr0[row * 8 + col] = (double)(((Ic_original[row * 8 + col] + 2 * Is_original[row * 8 + col] ) / (Ic_original[row * 8 + col] - 2 * Is_original[row * 8 + col] ) - 1) * 1000000);
+
+  }
+
+
+  CF =  (double)(1 / (1 + k * (Ic / Ic_original[row * 8 + col] - 1) ));
+  corrected_Is = (double)(Is * CF);
+
+
+
+
+  if (mr_cal == 1)
+  {
+    correctedmr = (( Ic_original[row * 8 + col] + 2 * corrected_Is ) / (Ic_original[row * 8 + col] - 2 * corrected_Is ) - 1) * 1000000 ;
+    deltamr = correctedmr - mr0[row * 8 + col];
+    mr_factor[row * 8 + col] = (double)(abs(mrmedian / deltamr));
+  }
+  else if (mr_cal == 0)
+  {
+    correctedmr = (( Ic_original[row * 8 + col] + 2 * corrected_Is ) / (Ic_original[row * 8 + col] - 2 * corrected_Is ) - 1) * 1000000 ;      
+    deltamr = mr_factor[row * 8 + col]* (correctedmr - mr0[row * 8 + col]) ;
+  }
+
+  if (deltamr < 29000)
+  {
+    two_byte_short = (short)(round(deltamr)) + 3000;
+  }
+
+  if (two_byte_short < 0)
+  {
+    two_byte_short = -two_byte_short;
+  }
+
+
+  if (two_byte_short < 32000)
+  {
+    ToSendDataBuffer1[0] = (byte)two_byte_short;
+    ToSendDataBuffer1[1] = (byte)( two_byte_short  >> 8);
+  }
+  else
+  {
+    ToSendDataBuffer1[0] = (byte)32000;
+    ToSendDataBuffer1[1] = (byte)( 32000  >> 8);
+  }
+
+  int sensorValue = ToSendDataBuffer1[0];
+
+//  Serial.write(ToSendDataBuffer1, 2);
+
   sensorValues[sensor]= sensorValue;
   
   writeData(timePoint, timerValue, sensor, sensorValue);
@@ -1018,7 +1225,7 @@ void matchResistances(){
       
       activeCount++;
       activePercent = activeCount*100/numActiveSensors;
-      calibrationDisplay = "Calibration is: \n" + String(activePercent) + "% Complete";
+      calibrationDisplay = "Res Matching is: \n" + String(activePercent) + "% Complete";
       genie.WriteStr(4, calibrationDisplay);
       
       
