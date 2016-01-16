@@ -539,12 +539,16 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 
 // What page to grab!
 
-#define WEBSITE      "data.sparkfun.com"
-#define WEBPAGE      "/output/aGOxVAX7VWs3331azdRo.csv"
+//#define WEBSITE      "data.sparkfun.com"
+//#define WEBPAGE      "/output/aGOxVAX7VWs3331azdRo.csv"
+//char server[] = "data.sparkfun.com";
+
+#define WEBSITE      "sensimetrics.herokuapp.com"
+//#define WEBPAGE      "/output/aGOxVAX7VWs3331azdRo.csv"
 char server[] = "data.sparkfun.com";
 
-const String publicKey = "aGOxVAX7VWs3331azdRo";
-const String privateKey = "KEox5am150FzzzRV6Jrv";
+//const String publicKey = "aGOxVAX7VWs3331azdRo";
+//const String privateKey = "KEox5am150FzzzRV6Jrv";
 
 const byte NUM_FIELDS = 3;
 const String fieldNames[NUM_FIELDS] = {"bsa", "thc", "biotin"};
@@ -1129,13 +1133,13 @@ void sendDataWifi(){
  
   int wifiConsol = 4;
 
-  digitalWrite(2, LOW);
+  digitalWrite(2, LOW);//??? dont remember why i put that 
 
   genie.WriteStr(wifiConsol, F("beginning wifi..."));
 
   if (!cc3000.begin())
   {
-    genie.WriteStr(wifiConsol, F("Couldn't begin()! Check your wiring?"));
+    genie.WriteStr(wifiConsol, F("Couldn't begin()! Wifi plugged in?"));
     while(1);
   }
   
@@ -1174,37 +1178,63 @@ void sendDataWifi(){
     return;
   }
 
-  genie.WriteStr(wifiConsol, F("sending data"));
-  www.print("GET /input/");
-  www.print(publicKey);
-  genie.WriteStr(wifiConsol, F("sending data 2/5"));
-  www.print("?private_key=");
-  www.print(privateKey);
-  genie.WriteStr(wifiConsol, F("sending data 3/5"));
-  for (int i=0; i<NUM_FIELDS; i++)
-  {
-    www.print("&");
-    www.print(fieldNames[i]);
-    www.print("=");
-    www.print(fieldData[i]);
-  }
-  genie.WriteStr(wifiConsol, F("sending data 4/5"));
-  www.println(" HTTP/1.1");
-  www.print("Host: ");
-  www.println(server);
-  genie.WriteStr(wifiConsol, F("sending data 5/5"));
+//  genie.WriteStr(wifiConsol, F("sending POST request"));
+//  www.println("POST / HTTP/1.1");
+//  www.println("Host: sensimetrics.herokuapp.com");
+//  www.println("Cache-Control: no-cache"); 
+//  www.println("Content-Type: application/x-www-form-urlencoded");
+//  www.println();
+//  www.println("bsa=0&thc=2&biotin=3&ref=4&user=Tyler+Shultz&experimemt_id=20&device_id=1");
+//  www.println();
+
+genie.WriteStr(wifiConsol, F("sending GET request"));
+
+  String getString = "GET /incomingData";
+  getString += "/101/101/101";
+  getString += " HTTP/1.1";
+  www.println(getString);
+  www.println("Host: sensimetrics.herokuapp.com");
   www.println("Connection: close");
   www.println();
 
+  
+//  genie.WriteStr(wifiConsol, F("sending data"));
+//  www.print("GET /input/");
+//  www.print(publicKey);
+//  genie.WriteStr(wifiConsol, F("sending data 2/5"));
+//  www.print("?private_key=");
+//  www.print(privateKey);
+//  genie.WriteStr(wifiConsol, F("sending data 3/5"));
+//  for (int i=0; i<NUM_FIELDS; i++)
+//  {
+//    www.print("&");
+//    www.print(fieldNames[i]);
+//    www.print("=");
+//    www.print(fieldData[i]);
+//  }
+//  genie.WriteStr(wifiConsol, F("sending data 4/5"));
+//  www.println(" HTTP/1.1");
+//  www.print("Host: ");
+//  www.println(server);
+//  genie.WriteStr(wifiConsol, F("sending data 5/5"));
+//  www.println("Connection: close");
+//  www.println();
+//
   genie.WriteStr(wifiConsol, F("data sent, requesting \n confirmation from website"));
   //receive confirmation from website
+  String returnString = "message: ";
   while (www.connected())
   {
     if ( www.available() )
     {
       char c = www.read();
+      returnString += c;
     }      
   }
+
+  genie.WriteStr(wifiConsol, returnString);
+  delay(5000);
+
   genie.WriteStr(wifiConsol, F("Data successfully uploaded \n to cloud"));
   cc3000.disconnect();
   
