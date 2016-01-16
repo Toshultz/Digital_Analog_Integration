@@ -47,7 +47,8 @@ int AUTOGAINA1 = 11;
 int SCLK_SIGSYN = 12;
 int SDO_SIGSYN = 30;
 
-double resistorarray[16] = {1300, 1315, 1345,1370,1400,1430,1460,1490,1515, 1545,1575,1605,1635, 1665,1695,1725};
+//double resistorarray[16] = {1300, 1315, 1345,1370,1400,1430,1460,1490,1515, 1545,1575,1605,1635, 1665,1695,1725};
+double resistorarray[16] = {1500, 1515, 1530, 1545, 1560, 1575, 1591, 1605, 1600, 1615, 1630, 1645, 1660, 1675, 1691, 1705};
 
 double AMP1[80];
 double sidedata = 0;
@@ -789,7 +790,7 @@ void myGenieEventHandler(void){
         dataFile.println("Iteration,Time,Sensor,Type,Value");
 
         while(!timerExpired){
-          if(millis()>waitPeriod){
+//          if(millis()>waitPeriod){
             timerValue = (millis()-startMillis)/1000;
             genie.WriteStr(3, F(" "));//for some bizzare reason, need this in order for timer to stop when stop button is pressed
             int minutes = timerValue/60;
@@ -798,12 +799,12 @@ void myGenieEventHandler(void){
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, 0, timerDisplay);
             waitPeriod +=1000;//1 sec
             calcMeanValues();
-          }
+//          }
           genie.DoEvents();
           
           if(readCount < sensorCount && sensors[readCount%80] != EMPTY){
 //          if(readCount < sensorCount){
-            mr_cal = 1;
+            mr_cal = 0;
             digitalWrite(PA_switch, HIGH);//Low field
             percent = readCount*100/sensorCount;
             calibrationString = "First read is: \n" + String(percent) + "% Complete";
@@ -812,14 +813,17 @@ void myGenieEventHandler(void){
           }
           
           else if(readCount < 2*sensorCount && sensors[readCount%80] != EMPTY){
-            mr_cal = 0;
+            mr_cal = 1;
             digitalWrite(PA_switch, LOW);//HIGH field
             
             percent = (readCount - sensorCount)*100/sensorCount;
             calibrationString = "Second read is: \n" + String(percent) + "% Complete";
             genie.WriteStr(4, calibrationString);
             collectSensorValue(readCount);
-          }else {collectSensorValue(readCount);}
+          }else {
+            mr_cal = 0;
+            collectSensorValue(readCount);
+          }
           
           readCount++;
         }
@@ -1004,36 +1008,36 @@ void collectSensorValue(int readCount){
 
 
 
-  Ic =  involt_rms * AMP1[row * 8 + col]   + sqrt((double)(2 * (carriermul))) / AMP23; // / AMP1[row * 8 + col]  ;
+  Ic =  involt_rms * AMP1[sensor]   + sqrt((double)(2 * (carriermul))) / AMP23; // / AMP1[row * 8 + col]  ;
   Is =  sqrt( 2 * (sidemul ) ) / AMP23;// / AMP1[row * 8 + col] ;
 
 
-  if (table[row * 8 + col] == 0)
+  if (table[sensor] == 0)
   {
-    table[row * 8 + col] = 1;
-    Ic_original[row * 8 + col] = (double)Ic;
-    Is_original[row * 8 + col] = (double)Is;
-    mr0[row * 8 + col] = (double)(((Ic_original[row * 8 + col] + 2 * Is_original[row * 8 + col] ) / (Ic_original[row * 8 + col] - 2 * Is_original[row * 8 + col] ) - 1) * 1000000);
+    table[sensor] = 1;
+    Ic_original[sensor] = (double)Ic;
+    Is_original[sensor] = (double)Is;
+    mr0[sensor] = (double)(((Ic_original[sensor] + 2 * Is_original[sensor] ) / (Ic_original[sensor] - 2 * Is_original[sensor] ) - 1) * 1000000);
 
   }
 
 
-  CF =  (double)(1 / (1 + k * (Ic / Ic_original[row * 8 + col] - 1) ));
+  CF =  (double)(1 / (1 + k * (Ic / Ic_original[sensor] - 1) ));
   corrected_Is = (double)(Is * CF);
-
-
-
 
   if (mr_cal == 1)
   {
-    correctedmr = (( Ic_original[row * 8 + col] + 2 * corrected_Is ) / (Ic_original[row * 8 + col] - 2 * corrected_Is ) - 1) * 1000000 ;
-    deltamr = correctedmr - mr0[row * 8 + col];
-    mr_factor[row * 8 + col] = (double)(abs(mrmedian / deltamr));
+    correctedmr = (( Ic_original[sensor] + 2 * corrected_Is ) / (Ic_original[sensor] - 2 * corrected_Is ) - 1) * 1000000 ;
+    deltamr = correctedmr - mr0[sensor]; // always returns 0???
+    mr_factor[sensor] = (double)(abs(mrmedian / deltamr));// always returns inf???
+//    String mr_factor_str = "deltamr for sensor: " + String(sensor) + " is ";
+//    dataFile.println(mr_factor_str);
+//    dataFile.println(deltamr);
   }
   else if (mr_cal == 0)
   {
-    correctedmr = (( Ic_original[row * 8 + col] + 2 * corrected_Is ) / (Ic_original[row * 8 + col] - 2 * corrected_Is ) - 1) * 1000000 ;      
-    deltamr = mr_factor[row * 8 + col]* (correctedmr - mr0[row * 8 + col]) ;
+    correctedmr = (( Ic_original[sensor] + 2 * corrected_Is ) / (Ic_original[sensor] - 2 * corrected_Is ) - 1) * 1000000 ;      
+    deltamr = mr_factor[sensor]* (correctedmr - mr0[sensor]) ;
   }
 
   if (deltamr < 29000)
@@ -1229,14 +1233,14 @@ void matchResistances(){
       genie.WriteStr(4, calibrationDisplay);
       
       
-      rown = (int)(rowncoln / 8);
-      coln = rowncoln - 8 * (int)(rowncoln / 8); //rowncoln % 8;
+      row = (int)(rowncoln / 8);
+      col = rowncoln - 8 * (int)(rowncoln / 8); //rowncoln % 8;
       
-      row = rowToMux[rown];
-      col = colarray[coln];
+      int muxRow = rowToMux[row];
+      int muxCol = colarray[col];
   
-      MULTIPLIER2_on(row);
-      MULTIPLIER1_on(col); ////////////////SHOULD BE CHECKED
+      MULTIPLIER2_on(muxRow);
+      MULTIPLIER1_on(muxCol); ////////////////SHOULD BE CHECKED
   
       // for the current sensor initialize faulty to be false for every resistor
       for (int a = 0; a < 16; a++)
@@ -1288,7 +1292,7 @@ void matchResistances(){
           }
   
   
-        }//end comparison of single sensor to resistor array
+        }//end comparison of single sensor to one resistor
   
         wrange[res] = wmax - wmin;
         if (wrange[res] < wrange[wrangesmallest])
@@ -1305,14 +1309,20 @@ void matchResistances(){
           faultysensor = false;
         }
       }
-  
-      if (faultysensor == true)
-      {
-        autogainres[rowncoln] = 0; //4;
-      }else if (autogainres[rowncoln] != 15)
+
+  // commented out labeling sensors as faulty
+//      if (faultysensor == true)
+//      {
+//        autogainres[rowncoln] = 0; //4;
+//      }else if (autogainres[rowncoln] != 15)
+//      {
+//        autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
+//  
+//      }
+
+      if (autogainres[rowncoln] != 15)
       {
         autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
-  
       }
   
     }//end if !=EMPTY
@@ -1333,10 +1343,7 @@ void matchResistances(){
     ToSendDataBuffer1[2 * a + 1] = w >> 8;
   }
 
-  dataFile.println("Begin writing reference resistors:  ");
-  dataFile.println(millis()-startTime);
-  
-  dataFile.println("reference resistors: ");
+  dataFile.println("Reference resistors:  ");  
   int rowEntry = 0;
   String rowString = "";
   for(int i = 0; i < 160; i++){
@@ -1354,11 +1361,6 @@ void matchResistances(){
     } 
   }
   dataFile.println(rowString);//print last row of res matches
-
-
-  dataFile.println("Done writing reference resistors:  ");
-  dataFile.println(millis()-startTime);
-
 
   for (int a = 0; a < 80; a++) //6
   {
