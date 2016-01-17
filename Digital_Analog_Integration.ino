@@ -514,7 +514,7 @@ int timerValue = 0;
 const int chipSelect = 4;
 
 File dataFile;
-
+File readFile;
 
 
 ///////////////////////////wifi//////////////////////////////
@@ -553,6 +553,7 @@ char server[] = "data.sparkfun.com";
 const byte NUM_FIELDS = 3;
 const String fieldNames[NUM_FIELDS] = {"bsa", "thc", "biotin"};
 int fieldData[NUM_FIELDS];
+
 
 uint32_t ip;
 ///////////////////////end wifi///////////////////////////////
@@ -700,8 +701,10 @@ void setup()
     while (1) ;
   }
 
-  //Write header on csv file.
-  dataFile.println(userName);
+  //Write header on csv file. create experiment ID.
+  long expID = random(0,10000);
+  String header = userName + "," + String(expID);
+  dataFile.println(header);
 
     
 }
@@ -835,6 +838,7 @@ void myGenieEventHandler(void){
       }
       if(Event.reportObject.index == 6){// stop experiment button
         genie.WriteStr(4, F("stop pressed"));
+        dataFile.close();
         timerExpired = true;
       
       }
@@ -1132,6 +1136,7 @@ void calcMeanValues(){
 void sendDataWifi(){
  
   int wifiConsol = 4;
+  readFile = SD.open("test.txt");
 
   digitalWrite(2, LOW);//??? dont remember why i put that 
 
@@ -1190,7 +1195,23 @@ void sendDataWifi(){
 genie.WriteStr(wifiConsol, F("sending GET request"));
 
   String getString = "GET /incomingData";
-  getString += "/101/101/101";
+  for(int i = 0; i < NUM_FIELDS; i++){
+    getString += "/";
+    getString += fieldData[i];
+  }
+  //add ref
+  getString += "/";
+  getString += 4;
+  //add user
+  getString += "/";
+  getString += userName;
+  //add experiment_id
+  getString += "/";
+  getString += expID;
+  //add device_id
+  getString += "/";
+  getString += 1;
+
   getString += " HTTP/1.1";
   www.println(getString);
   www.println("Host: sensimetrics.herokuapp.com");
