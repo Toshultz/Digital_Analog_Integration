@@ -511,6 +511,12 @@ void initializeSensors();
 bool timerExpired = true;
 int timerValue = 0;
 
+String userName = "";
+String firstName = "";
+String middleName = "";
+String lastName = "";
+long expID;
+
 const int chipSelect = 4;
 
 File dataFile;
@@ -638,9 +644,6 @@ void setup()
   keyboard.begin(DataPin, IRQpin);
   
   bool IDswipe = false;
-  String firstName = "";
-  String middleName = "";
-  String lastName = "";
   bool nameStart = false;
   int whichName = 0;
 
@@ -668,7 +671,7 @@ void setup()
     }
   }
 
-  String userName = firstName+ " "+middleName+ " " + lastName;
+  userName = firstName+ " "+middleName+ " " + lastName;
   char userNameChar[userName.length() + 1];
   userName.toCharArray(userNameChar, userName.length() + 1);
 
@@ -702,7 +705,7 @@ void setup()
   }
 
   //Write header on csv file. create experiment ID.
-  long expID = random(0,10000);
+  expID = random(0,10000);
   String header = userName + "," + String(expID);
   dataFile.println(header);
 
@@ -1199,12 +1202,13 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
     getString += "/";
     getString += fieldData[i];
   }
+
   //add ref
   getString += "/";
   getString += 4;
-  //add user
+//  add user
   getString += "/";
-  getString += userName;
+  getString += firstName +"%20" +middleName +"%20" + lastName;
   //add experiment_id
   getString += "/";
   getString += expID;
@@ -1214,49 +1218,23 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
 
   getString += " HTTP/1.1";
   www.println(getString);
+
   www.println("Host: sensimetrics.herokuapp.com");
   www.println("Connection: close");
   www.println();
 
-  
-//  genie.WriteStr(wifiConsol, F("sending data"));
-//  www.print("GET /input/");
-//  www.print(publicKey);
-//  genie.WriteStr(wifiConsol, F("sending data 2/5"));
-//  www.print("?private_key=");
-//  www.print(privateKey);
-//  genie.WriteStr(wifiConsol, F("sending data 3/5"));
-//  for (int i=0; i<NUM_FIELDS; i++)
-//  {
-//    www.print("&");
-//    www.print(fieldNames[i]);
-//    www.print("=");
-//    www.print(fieldData[i]);
-//  }
-//  genie.WriteStr(wifiConsol, F("sending data 4/5"));
-//  www.println(" HTTP/1.1");
-//  www.print("Host: ");
-//  www.println(server);
-//  genie.WriteStr(wifiConsol, F("sending data 5/5"));
-//  www.println("Connection: close");
-//  www.println();
-//
   genie.WriteStr(wifiConsol, F("data sent, requesting \n confirmation from website"));
-  //receive confirmation from website
-  String returnString = "message: ";
+
   while (www.connected())
   {
     if ( www.available() )
     {
       char c = www.read();
-      returnString += c;
     }      
   }
 
-  genie.WriteStr(wifiConsol, returnString);
-  delay(5000);
+  genie.WriteStr(wifiConsol, F("Results successfully uploaded \n to cloud"));
 
-  genie.WriteStr(wifiConsol, F("Data successfully uploaded \n to cloud"));
   cc3000.disconnect();
   
 }
