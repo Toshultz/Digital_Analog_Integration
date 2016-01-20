@@ -1250,50 +1250,83 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
 
   delay(1000);
   
-  genie.WriteStr(wifiConsol, "sent expID");
+  genie.WriteStr(wifiConsol, "sending POST");
 
   File readFile = SD.open("test.csv");
-  
-  if ((readFile) && (www.connected())) {
-    www.fastrprint(F("POST /dataUpload "));
-    www.fastrprint("sensimetrics.herokuapp.com");
-    www.fastrprint(F(" HTTP/1.1\r\n"));
-    www.fastrprint(F("Content-type: text/csv\r\n"));
-    www.fastrprint(F("Content-length: "));
-    char buffarray[8];
-    sprintf(buffarray, "%d", readFile.size());
-    www.fastrprint(buffarray );
-    www.fastrprint(F("\r\n"));
-    www.println();
-    while (readFile.available()) {
-      www.write(readFile.read());
-    }
-    readFile.close();
-  }
 
+  int count = 0;
+  while(readFile.available()){
+    String POST_BODY = "fileContent=";
+    char c = readFile.read();
+    while(c != '\n'){
+      POST_BODY += c;
+      genie.WriteStr(wifiConsol, c);
+      delay(500);
+      c = readFile.read();
+    }
+
+    genie.WriteStr(wifiConsol, String(count));
+    if (www.connected()) {
+      www.println("POST /dataUploadFromArduino HTTP/1.1");
+      www.println("Host: sensimetrics.herokuapp.com");
+      www.println("Content-Type: application/x-www-form-urlencoded");
+      www.print("Content-length: ");
+      www.println(String(POST_BODY.length()));
+      www.println(); 
+      www.println(POST_BODY);    
+    
+    }
+    count++;
+  }
+  readFile.close();
+
+
+  genie.WriteStr(wifiConsol, "sent post");
   
 //  int count = 0;
 ////  while(readFile.available()){
-//  for(int i = 0; i < 1 ; i++){    
-//    getString = "GET /incomingFile/data/";
-////    while(readFile.available()){
-////      getString += readFile.read();
-////      genie.WriteStr(wifiConsol, String(count));
-////      count++;
-////    }
+//  for(int i = 0; i < 10 ; i++){    
+//    if(www.connected() && cc3000.checkDHCP())){
+//      getString = "GET /incomingFile/data/";
+//  //    while(readFile.available()){
+//  //      getString += readFile.read();
+//  //      genie.WriteStr(wifiConsol, String(count));
+//  //      count++;
+//  //    }
+//  
+//  //    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A 0,0,1,BSA,184,%0A 0,1,3,THC,184,%0A 0,2,10,THC,184,%0A 1,5,1,BSA,184,%0A 1,6,3,THC,184,%0A 1,8,10,THC,166,%0A";
+//      getString += String(i);
+//      getString += " HTTP/1.1";
+//      genie.WriteStr(wifiConsol, "print getstring...");
+//      www.println(getString);
+//      genie.WriteStr(wifiConsol, "print host...");
+//      www.println("Host: sensimetrics.herokuapp.com");
+//      genie.WriteStr(wifiConsol, "print connection...");
+//      www.println("Connection: keep-alive");
+//  
+//      www.println();
+//      genie.WriteStr(wifiConsol, String(i));
 //
-////    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A 0,0,1,BSA,184,%0A 0,1,3,THC,184,%0A 0,2,10,THC,184,%0A 1,5,1,BSA,184,%0A 1,6,3,THC,184,%0A 1,8,10,THC,166,%0A";
-//    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A,0,0,1,BSA,184,%0A,0,1,3,THC,184";
-//    getString += " HTTP/1.1";
-//    genie.WriteStr(wifiConsol, "print getstring...");
-//    www.println(getString);
-//    genie.WriteStr(wifiConsol, "print host...");
-//    www.println("Host: sensimetrics.herokuapp.com");
-//    genie.WriteStr(wifiConsol, "print connection...");
-//    www.println("Connection: keep-alive");
-//
-//    www.println();
-//    delay(1000);
+//      delay(1000);
+//    }else{
+//      genie.WriteStr(wifiConsol, F("Requesting DHCP..."));
+//      while (!cc3000.checkDHCP())
+//      {
+//        delay(100); // ToDo: Insert a DHCP timeout!
+//      } 
+//      
+//      www = cc3000.connectTCP(ip, 80);
+//      if (www.connected()) {
+//        genie.WriteStr(wifiConsol, F("Successfully connected"));
+//    
+//        www.println();
+//      } else {
+//        genie.WriteStr(wifiConsol, F("Connection failed"));    
+//        return;
+//      }
+//      delay(1000);
+//      i--;
+//    }
 //
 //  }
 
