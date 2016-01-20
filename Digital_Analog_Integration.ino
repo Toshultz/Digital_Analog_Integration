@@ -495,6 +495,7 @@ void sort(double *a, int siz) {
 #include "utility/debug.h"
 #include <PS2Keyboard.h>
 
+
 Genie genie;
 
 int BSA = 0;
@@ -696,8 +697,8 @@ void setup()
 //  filename.toCharArray(filenameChar, sizeof(filename));
 
  
-  SD.remove("test.csv");
-  dataFile = SD.open("test.csv", FILE_WRITE);
+  SD.remove("205.csv");
+  dataFile = SD.open("205.csv", FILE_WRITE);
   if (! dataFile) {
     genie.WriteStr(3, F("could not open csv file"));
     // Wait forever since we cant write data
@@ -705,7 +706,7 @@ void setup()
   }
 
   //Write header on csv file. create experiment ID.
-  expID = random(0,10000);
+  expID = 205;
   String header = userName + "," + String(expID);
   dataFile.println(header);
 
@@ -1139,7 +1140,6 @@ void calcMeanValues(){
 void sendDataWifi(){
  
   int wifiConsol = 4;
-  readFile = SD.open("test.txt");
 
   digitalWrite(2, LOW);//??? dont remember why i put that 
 
@@ -1220,23 +1220,113 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
   www.println(getString);
 
   www.println("Host: sensimetrics.herokuapp.com");
+  www.println("Connection: keep-alive");
+  www.println();
+
+  genie.WriteStr(wifiConsol, "data sent, requesting \n confirmation from website");
+
+  delay(1000);
+    
+  genie.WriteStr(wifiConsol, "sending whole file...");
+
+  //send user name to AWS file
+  getString = "GET /incomingFile/user/" + firstName +"%20" +middleName +"%20" + lastName;
+  getString += " HTTP/1.1";
+  www.println(getString);
+  www.println("Host: sensimetrics.herokuapp.com");
+  www.println("Connection: keep-alive");
+  www.println();
+
+  delay(1000);
+
+  genie.WriteStr(wifiConsol, "sent user name");
+  
+  getString = "GET /incomingFile/expID/" + String(expID);
+  getString += " HTTP/1.1";
+  www.println(getString);
+  www.println("Host: sensimetrics.herokuapp.com");
+  www.println("Connection: keep-alive");
+  www.println();
+
+  delay(1000);
+  
+  genie.WriteStr(wifiConsol, "sent expID");
+
+  File readFile = SD.open("test.csv");
+  
+  if ((readFile) && (www.connected())) {
+    www.fastrprint(F("POST /dataUpload "));
+    www.fastrprint("sensimetrics.herokuapp.com");
+    www.fastrprint(F(" HTTP/1.1\r\n"));
+    www.fastrprint(F("Content-type: text/csv\r\n"));
+    www.fastrprint(F("Content-length: "));
+    char buffarray[8];
+    sprintf(buffarray, "%d", readFile.size());
+    www.fastrprint(buffarray );
+    www.fastrprint(F("\r\n"));
+    www.println();
+    while (readFile.available()) {
+      www.write(readFile.read());
+    }
+    readFile.close();
+  }
+
+  
+//  int count = 0;
+////  while(readFile.available()){
+//  for(int i = 0; i < 1 ; i++){    
+//    getString = "GET /incomingFile/data/";
+////    while(readFile.available()){
+////      getString += readFile.read();
+////      genie.WriteStr(wifiConsol, String(count));
+////      count++;
+////    }
+//
+////    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A 0,0,1,BSA,184,%0A 0,1,3,THC,184,%0A 0,2,10,THC,184,%0A 1,5,1,BSA,184,%0A 1,6,3,THC,184,%0A 1,8,10,THC,166,%0A";
+//    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A,0,0,1,BSA,184,%0A,0,1,3,THC,184";
+//    getString += " HTTP/1.1";
+//    genie.WriteStr(wifiConsol, "print getstring...");
+//    www.println(getString);
+//    genie.WriteStr(wifiConsol, "print host...");
+//    www.println("Host: sensimetrics.herokuapp.com");
+//    genie.WriteStr(wifiConsol, "print connection...");
+//    www.println("Connection: keep-alive");
+//
+//    www.println();
+//    delay(1000);
+//
+//  }
+
+  readFile.close();
+
+  genie.WriteStr(wifiConsol, "out of data loop");
+  
+  getString = "GET /incomingFile/DONE/end_file";
+  getString += " HTTP/1.1";
+  www.println(getString);
+  www.println("Host: sensimetrics.herokuapp.com");
   www.println("Connection: close");
   www.println();
 
-  genie.WriteStr(wifiConsol, F("data sent, requesting \n confirmation from website"));
 
+  String res = "";
   while (www.connected())
   {
+    genie.WriteStr(wifiConsol, res);
     if ( www.available() )
     {
       char c = www.read();
-    }      
+      res += c;
+    }else{
+      genie.WriteStr(wifiConsol, "Data successfully uploaded \n to cloud");
+    }
   }
 
-  genie.WriteStr(wifiConsol, F("Results successfully uploaded \n to cloud"));
+      genie.WriteStr(wifiConsol, "Data successfully uploaded \n to cloud");
 
-  cc3000.disconnect();
+
   
+  cc3000.disconnect(); 
 }
 
 void matchResistances(){
