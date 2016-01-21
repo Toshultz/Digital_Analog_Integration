@@ -494,6 +494,9 @@ void sort(double *a, int siz) {
 #include <string.h>
 #include "utility/debug.h"
 #include <PS2Keyboard.h>
+#include <EEPROMex.h>
+#include <EEPROMVar.h>
+
 
 
 Genie genie;
@@ -1223,11 +1226,11 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
   www.println("Connection: keep-alive");
   www.println();
 
-  genie.WriteStr(wifiConsol, "data sent, requesting \n confirmation from website");
-
-  delay(1000);
-    
-  genie.WriteStr(wifiConsol, "sending whole file...");
+  while(www.available()){
+    char c = www.read();
+  }
+      
+  genie.WriteStr(wifiConsol, F("sending whole file..."));
 
   //send user name to AWS file
   getString = "GET /incomingFile/user/" + firstName +"%20" +middleName +"%20" + lastName;
@@ -1237,9 +1240,11 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
   www.println("Connection: keep-alive");
   www.println();
 
-  delay(1000);
+  while(www.available()){
+    char c = www.read();
+  }
 
-  genie.WriteStr(wifiConsol, "sent user name");
+  genie.WriteStr(wifiConsol, F("sent user name"));
   
   getString = "GET /incomingFile/expID/" + String(expID);
   getString += " HTTP/1.1";
@@ -1248,26 +1253,41 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
   www.println("Connection: keep-alive");
   www.println();
 
-  delay(1000);
+  while(www.available()){
+    char c = www.read();
+  }
   
   File readFile = SD.open("205.csv");
 
   int count = 0;
+  String POST_BODY = "fileContent=";
+  bool lastSent = true;
+  while(readFile.available()){ 
 
-  String POST_BODY = "fileContent=-1,1,2,3,4,5,6,7,8";
-
-  for(int i = 0; i < 100; i++){ 
-    genie.WriteStr(wifiConsol, String(i));
+    if(lastSent){
+      POST_BODY = "fileContent=";
+      
+      for(int i = 0; i < 30; i++){
+        if(readFile.available()){
+          char c = readFile.read();
+          POST_BODY += c;
+        }
+      }
+    }
+    
+    genie.WriteStr(wifiConsol, String(count));
     if (www.connected()) {
       www.fastrprintln(F("POST /dataUploadFromArduino HTTP/1.1"));
       www.fastrprintln(F("Host: sensimetrics.herokuapp.com"));
       www.fastrprintln(F("Content-Type: application/x-www-form-urlencoded"));
       www.fastrprint(F("Content-length: "));
-      
-      www.fastrprintln(F(String(POST_BODY.length())));
-      www.println(); 
-      www.fastrprintln(F(POST_BODY));    
-    
+//      char stringBuffer[8];
+//      sprintf(stringBuffer, "%d", POST_BODY.length());
+//      www.fastrprint(stringBuffer);
+      www.println(POST_BODY.length());
+      www.println();
+      www.println(POST_BODY); 
+      lastSent = true;   
     }else{
       www = cc3000.connectTCP(ip, 80);
       if (www.connected()) {
@@ -1279,69 +1299,19 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
         delay(1000); 
         return;
       }
+      lastSent = false;
     }
 
     while(www.available()){
       char c = www.read();
-
-    }
+    } 
     count++;
   }
   readFile.close();
 
 
-  genie.WriteStr(wifiConsol, "sent post");
-  
-//  int count = 0;
-////  while(readFile.available()){
-//  for(int i = 0; i < 10 ; i++){    
-//    if(www.connected() && cc3000.checkDHCP())){
-//      getString = "GET /incomingFile/data/";
-//  //    while(readFile.available()){
-//  //      getString += readFile.read();
-//  //      genie.WriteStr(wifiConsol, String(count));
-//  //      count++;
-//  //    }
-//  
-//  //    getString += "TYLEROBRIENSHULTZ,205,%0A,Iteration,Time,Sensor,Type,Value,%0A 0,0,1,BSA,184,%0A 0,1,3,THC,184,%0A 0,2,10,THC,184,%0A 1,5,1,BSA,184,%0A 1,6,3,THC,184,%0A 1,8,10,THC,166,%0A";
-//      getString += String(i);
-//      getString += " HTTP/1.1";
-//      genie.WriteStr(wifiConsol, "print getstring...");
-//      www.println(getString);
-//      genie.WriteStr(wifiConsol, "print host...");
-//      www.println("Host: sensimetrics.herokuapp.com");
-//      genie.WriteStr(wifiConsol, "print connection...");
-//      www.println("Connection: keep-alive");
-//  
-//      www.println();
-//      genie.WriteStr(wifiConsol, String(i));
-//
-//      delay(1000);
-//    }else{
-//      genie.WriteStr(wifiConsol, F("Requesting DHCP..."));
-//      while (!cc3000.checkDHCP())
-//      {
-//        delay(100); // ToDo: Insert a DHCP timeout!
-//      } 
-//      
-//      www = cc3000.connectTCP(ip, 80);
-//      if (www.connected()) {
-//        genie.WriteStr(wifiConsol, F("Successfully connected"));
-//    
-//        www.println();
-//      } else {
-//        genie.WriteStr(wifiConsol, F("Connection failed"));    
-//        return;
-//      }
-//      delay(1000);
-//      i--;
-//    }
-//
-//  }
+  genie.WriteStr(wifiConsol, F("sent post"));
 
-  readFile.close();
-
-  genie.WriteStr(wifiConsol, "out of data loop");
   
   getString = "GET /incomingFile/DONE/end_file";
   getString += " HTTP/1.1";
@@ -1359,15 +1329,8 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
     {
       char c = www.read();
       res += c;
-    }else{
-      genie.WriteStr(wifiConsol, "Data successfully uploaded \n to cloud");
     }
   }
-
-      genie.WriteStr(wifiConsol, "Data successfully uploaded \n to cloud");
-
-
-  
   cc3000.disconnect(); 
 }
 
