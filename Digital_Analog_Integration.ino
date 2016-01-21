@@ -1250,31 +1250,40 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
 
   delay(1000);
   
-  genie.WriteStr(wifiConsol, "sending POST");
-
-  File readFile = SD.open("test.csv");
+  File readFile = SD.open("205.csv");
 
   int count = 0;
-  while(readFile.available()){
-    String POST_BODY = "fileContent=";
-    char c = readFile.read();
-    while(c != '\n'){
-      POST_BODY += c;
-      genie.WriteStr(wifiConsol, c);
-      delay(500);
-      c = readFile.read();
+
+  String POST_BODY = "fileContent=-1,1,2,3,4,5,6,7,8";
+
+  for(int i = 0; i < 100; i++){ 
+    genie.WriteStr(wifiConsol, String(i));
+    if (www.connected()) {
+      www.fastrprintln(F("POST /dataUploadFromArduino HTTP/1.1"));
+      www.fastrprintln(F("Host: sensimetrics.herokuapp.com"));
+      www.fastrprintln(F("Content-Type: application/x-www-form-urlencoded"));
+      www.fastrprint(F("Content-length: "));
+      
+      www.fastrprintln(F(String(POST_BODY.length())));
+      www.println(); 
+      www.fastrprintln(F(POST_BODY));    
+    
+    }else{
+      www = cc3000.connectTCP(ip, 80);
+      if (www.connected()) {
+        genie.WriteStr(wifiConsol, F("Successfully re-connected"));
+        delay(1000);
+        www.println();
+      } else {
+        genie.WriteStr(wifiConsol, F("Connection failed"));   
+        delay(1000); 
+        return;
+      }
     }
 
-    genie.WriteStr(wifiConsol, String(count));
-    if (www.connected()) {
-      www.println("POST /dataUploadFromArduino HTTP/1.1");
-      www.println("Host: sensimetrics.herokuapp.com");
-      www.println("Content-Type: application/x-www-form-urlencoded");
-      www.print("Content-length: ");
-      www.println(String(POST_BODY.length()));
-      www.println(); 
-      www.println(POST_BODY);    
-    
+    while(www.available()){
+      char c = www.read();
+
     }
     count++;
   }
