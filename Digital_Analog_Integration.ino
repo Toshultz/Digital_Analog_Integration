@@ -1,3 +1,4 @@
+
 /*
   SD card datalogger
  
@@ -48,7 +49,7 @@ int SCLK_SIGSYN = 12;
 int SDO_SIGSYN = 30;
 
 //double resistorarray[16] = {1300, 1315, 1345,1370,1400,1430,1460,1490,1515, 1545,1575,1605,1635, 1665,1695,1725};
-double resistorarray[16] = {1500, 1515, 1530, 1545, 1560, 1575, 1591, 1605, 1600, 1615, 1630, 1645, 1660, 1675, 1691, 1705};
+double resistorarray[16] = {1500, 1515, 1530, 1545, 1560, 1575, 1591, 1605, 1620, 1635, 1650, 1665, 1680, 1695, 1711, 1725};
 
 double AMP1[80];
 double sidedata = 0;
@@ -494,9 +495,6 @@ void sort(double *a, int siz) {
 #include <string.h>
 #include "utility/debug.h"
 #include <PS2Keyboard.h>
-#include <EEPROMex.h>
-#include <EEPROMVar.h>
-
 
 
 Genie genie;
@@ -519,12 +517,14 @@ String userName = "";
 String firstName = "";
 String middleName = "";
 String lastName = "";
-long expID;
+String expID = "";
+String deviceID = "";
 
 const int chipSelect = 4;
 
 File dataFile;
 File readFile;
+File info;
 
 
 ///////////////////////////wifi//////////////////////////////
@@ -615,7 +615,7 @@ void setup()
   SPI_COIL_SEND(0xC000);  // 
   SPI_COIL_SEND(0x2000);  // 
 
-  digitalWrite(PA_switch, LOW); //high field
+  digitalWrite(PA_switch, HIGH); //low field
 
   digitalWrite(MOTOR_CONTROL,LOW);
 
@@ -689,19 +689,34 @@ void setup()
     while (1) ;
   }
   
-  // Delete the existing file, then open up the file we're going to log to!
+// open info file to get expID and device ID
+  info = SD.open("info.csv");
+  char c = info.read();
+  while(c != ','){
+    deviceID += c;
+    c = info.read();
+  }
+  while(info.available()){
+    c = info.read();
+    expID += c;
+  }
 
-  //for some reason this code does not work. csv file must be predetermined
-//  String filename = "";
-//  if(userName == ""){filename = "test.csv";}
-//  else{filename = userName;}
-//
-//  char filenameChar[filename.length() + 1];
-//  filename.toCharArray(filenameChar, sizeof(filename));
 
- 
-  SD.remove("205.csv");
-  dataFile = SD.open("205.csv", FILE_WRITE);
+  int expID_int = expID.toInt() + 1; //add one to previous expID
+  expID = String(expID_int);
+  String filename = expID + ".csv";
+
+  genie.WriteStr(3, deviceID + "," + expID);
+  
+  info.close();
+  SD.remove("info.csv");
+  
+  info = SD.open("info.csv", FILE_WRITE);
+  String infoString = deviceID + "," + expID;
+  info.print(infoString);
+  info.close();
+
+  dataFile = SD.open(filename, FILE_WRITE);
   if (! dataFile) {
     genie.WriteStr(3, F("could not open csv file"));
     // Wait forever since we cant write data
@@ -709,8 +724,7 @@ void setup()
   }
 
   //Write header on csv file. create experiment ID.
-  expID = 205;
-  String header = userName + "," + String(expID);
+  String header = userName + "," + expID;
   dataFile.println(header);
 
     
@@ -1077,7 +1091,8 @@ void collectSensorValue(int readCount){
     ToSendDataBuffer1[1] = (byte)( 32000  >> 8);
   }
 
-  int sensorValue = ToSendDataBuffer1[0];
+//  int sensorValue = ToSendDataBuffer1[0];
+  int sensorValue = two_byte_short;
 
 //  Serial.write(ToSendDataBuffer1, 2);
 
@@ -1189,14 +1204,6 @@ void sendDataWifi(){
     return;
   }
 
-//  genie.WriteStr(wifiConsol, F("sending POST request"));
-//  www.println("POST / HTTP/1.1");
-//  www.println("Host: sensimetrics.herokuapp.com");
-//  www.println("Cache-Control: no-cache"); 
-//  www.println("Content-Type: application/x-www-form-urlencoded");
-//  www.println();
-//  www.println("bsa=0&thc=2&biotin=3&ref=4&user=Tyler+Shultz&experimemt_id=20&device_id=1");
-//  www.println();
 
 genie.WriteStr(wifiConsol, F("sending GET request"));
 
@@ -1246,7 +1253,7 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
 
   genie.WriteStr(wifiConsol, F("sent user name"));
   
-  getString = "GET /incomingFile/expID/" + String(expID);
+  getString = "GET /incomingFile/expID/" + expID;
   getString += " HTTP/1.1";
   www.println(getString);
   www.println("Host: sensimetrics.herokuapp.com");
@@ -1257,7 +1264,7 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
     char c = www.read();
   }
   
-  File readFile = SD.open("205.csv");
+  File readFile = SD.open(expID);
 
   int count = 0;
   String POST_BODY = "fileContent=";
@@ -1434,20 +1441,20 @@ void matchResistances(){
         }
       }
 
-  // commented out labeling sensors as faulty
-//      if (faultysensor == true)
-//      {
-//        autogainres[rowncoln] = 0; //4;
-//      }else if (autogainres[rowncoln] != 15)
+//    labeling sensors as faulty
+      if (faultysensor == true)
+      {
+        autogainres[rowncoln] = 0; //4;
+      }else if (autogainres[rowncoln] != 15)
+      {
+        autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
+      }
+//
+//      if (autogainres[rowncoln] != 15)
 //      {
 //        autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
 //  
 //      }
-
-      if (autogainres[rowncoln] != 15)
-      {
-        autogainres[rowncoln] = autogainres[rowncoln] + 1; //4;
-      }
   
     }//end if !=EMPTY
     else{
@@ -1470,20 +1477,32 @@ void matchResistances(){
   dataFile.println("Reference resistors:  ");  
   int rowEntry = 0;
   String rowString = "";
-  for(int i = 0; i < 160; i++){
-    if(rowEntry < 16){
-      if(i%2 == 0){
-        rowString += ToSendDataBuffer1[i];
-        rowString += ",";
-      }
+  for(int i = 0; i < sensorCount; i++){
+    if(rowEntry < 8){
+      rowString += autogainres[i];
+      rowString += ",";
       rowEntry++;
     }else{
       dataFile.println(rowString);
-      rowString = ToSendDataBuffer1[i];
+      rowString = autogainres[i];
       rowString += ",";
       rowEntry = 1;
     } 
   }
+//  for(int i = 0; i < 160; i++){
+//    if(rowEntry < 16){
+//      if(i%2 == 0){
+//        rowString += ToSendDataBuffer1[i];
+//        rowString += ",";
+//      }
+//      rowEntry++;
+//    }else{
+//      dataFile.println(rowString);
+//      rowString = ToSendDataBuffer1[i];
+//      rowString += ",";
+//      rowEntry = 1;
+//    } 
+//  }
   dataFile.println(rowString);//print last row of res matches
 
   for (int a = 0; a < 80; a++) //6
