@@ -519,6 +519,7 @@ String middleName = "";
 String lastName = "";
 String expID = "";
 String deviceID = "";
+String filename = "";
 
 const int chipSelect = 4;
 
@@ -680,7 +681,7 @@ void setup()
   userName.toCharArray(userNameChar, userName.length() + 1);
 
   digitalWrite(10, LOW);
-  genie.WriteStr(3, userNameChar);
+//  genie.WriteStr(3, userNameChar);
 
   
     // see if the card is present and can be initialized:
@@ -704,12 +705,12 @@ void setup()
 
   int expID_int = expID.toInt() + 1; //add one to previous expID
   expID = String(expID_int);
-  String filename = expID + ".csv";
-
-  genie.WriteStr(3, deviceID + "," + expID);
+  filename = expID + ".csv";
   
   info.close();
   SD.remove("info.csv");
+
+  genie.WriteStr(3, userName + "\n Experiment ID: " + expID);
   
   info = SD.open("info.csv", FILE_WRITE);
   String infoString = deviceID + "," + expID;
@@ -1230,28 +1231,30 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
   www.println(getString);
 
   www.println("Host: sensimetrics.herokuapp.com");
-  www.println("Connection: keep-alive");
+  www.println("Connection: close");
   www.println();
 
   while(www.available()){
     char c = www.read();
   }
+
+  www = cc3000.connectTCP(ip, 80);
       
   genie.WriteStr(wifiConsol, F("sending whole file..."));
 
   //send user name to AWS file
-  getString = "GET /incomingFile/user/" + firstName +"%20" +middleName +"%20" + lastName;
-  getString += " HTTP/1.1";
-  www.println(getString);
-  www.println("Host: sensimetrics.herokuapp.com");
-  www.println("Connection: keep-alive");
-  www.println();
+//  getString = "GET /incomingFile/user/" + firstName +"%20" +middleName +"%20" + lastName;
+//  getString += " HTTP/1.1";
+//  www.println(getString);
+//  www.println("Host: sensimetrics.herokuapp.com");
+//  www.println("Connection: keep-alive");
+//  www.println();
+//
+//  while(www.available()){
+//    char c = www.read();
+//  }
 
-  while(www.available()){
-    char c = www.read();
-  }
-
-  genie.WriteStr(wifiConsol, F("sent user name"));
+//  genie.WriteStr(wifiConsol, F("sent user name"));
   
   getString = "GET /incomingFile/expID/" + expID;
   getString += " HTTP/1.1";
@@ -1264,7 +1267,7 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
     char c = www.read();
   }
   
-  File readFile = SD.open(expID);
+  File readFile = SD.open(filename);
 
   int count = 0;
   String POST_BODY = "fileContent=";
@@ -1319,6 +1322,7 @@ genie.WriteStr(wifiConsol, F("sending GET request"));
 
   genie.WriteStr(wifiConsol, F("sent post"));
 
+  www = cc3000.connectTCP(ip, 80);
   
   getString = "GET /incomingFile/DONE/end_file";
   getString += " HTTP/1.1";
